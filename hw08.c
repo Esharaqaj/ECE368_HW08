@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define MAX_VERTICES 1000
+#define MAX_VERTICES 10000
 #define MAX_EDGES 10000
 #define INF INT_MAX
 
