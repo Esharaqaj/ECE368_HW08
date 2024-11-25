@@ -1,31 +1,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <string.h>
 #include <stdbool.h>
 
-#define MAX_V 100000  // Maximum number of vertices
-#define MAX_N 1000   // Maximum period
+#define MAX_VERTICES 100000
+#define MAX_EDGES 1000
+#define INF INT_MAX
 
+// Edge structure
 typedef struct {
-    int vertex;
-    int time_step;
-    int weight;
+    int source, target, weights[10]; // Max period N is assumed to be <= 10
+} Edge;
+
+// Priority Queue Node
+typedef struct {
+    int vertex, time, dist;
 } Node;
 
+// Priority Queue
 typedef struct {
-    Node nodes[MAX_V * MAX_N];
+    Node nodes[MAX_VERTICES * 10];
     int size;
 } PriorityQueue;
 
-// Priority Queue functions
-void initQueue(PriorityQueue* pq) {
+// Graph structure
+typedef struct {
+    int V, N, edgeCount;
+    Edge edges[MAX_EDGES];
+} Graph;
+
+// Function prototypes
+void initPriorityQueue(PriorityQueue *pq);
+void push(PriorityQueue *pq, int vertex, int time, int dist);
+Node pop(PriorityQueue *pq);
+bool isEmpty(PriorityQueue *pq);
+void dijkstra(Graph *graph, int start, int end);
+void readGraph(Graph *graph, const char *filename);
+
+// Initialize Priority Queue
+void initPriorityQueue(PriorityQueue *pq) {
     pq->size = 0;
 }
 
-void push(PriorityQueue* pq, Node node) {
-    pq->nodes[pq->size++] = node;
+// Push into Priority Queue
+void push(PriorityQueue *pq, int vertex, int time, int dist) {
+    pq->nodes[pq->size++] = (Node){vertex, time, dist};
     int i = pq->size - 1;
-    while (i > 0 && pq->nodes[i].weight < pq->nodes[(i - 1) / 2].weight) {
+
+    // Bubble up
+    while (i > 0 && pq->nodes[i].dist < pq->nodes[(i - 1) / 2].dist) {
         Node temp = pq->nodes[i];
         pq->nodes[i] = pq->nodes[(i - 1) / 2];
         pq->nodes[(i - 1) / 2] = temp;
@@ -33,108 +57,149 @@ void push(PriorityQueue* pq, Node node) {
     }
 }
 
-Node pop(PriorityQueue* pq) {
-    Node minNode = pq->nodes[0];
+// Pop from Priority Queue
+Node pop(PriorityQueue *pq) {
+    Node root = pq->nodes[0];
     pq->nodes[0] = pq->nodes[--pq->size];
     int i = 0;
+
+    // Bubble down
     while (2 * i + 1 < pq->size) {
-        int minIndex = i;
-        if (pq->nodes[2 * i + 1].weight < pq->nodes[minIndex].weight) {
-            minIndex = 2 * i + 1;
-        }
-        if (2 * i + 2 < pq->size && pq->nodes[2 * i + 2].weight < pq->nodes[minIndex].weight) {
-            minIndex = 2 * i + 2;
-        }
-        if (minIndex == i) break;
+        int smallest = i;
+        int left = 2 * i + 1, right = 2 * i + 2;
+
+        if (pq->nodes[left].dist < pq->nodes[smallest].dist) smallest = left;
+        if (right < pq->size && pq->nodes[right].dist < pq->nodes[smallest].dist) smallest = right;
+
+        if (smallest == i) break;
+
         Node temp = pq->nodes[i];
-        pq->nodes[i] = pq->nodes[minIndex];
-        pq->nodes[minIndex] = temp;
-        i = minIndex;
+        pq->nodes[i] = pq->nodes[smallest];
+        pq->nodes[smallest] = temp;
+        i = smallest;
     }
-    return minNode;
+
+    return root;
 }
 
-bool isEmpty(PriorityQueue* pq) {
+// Check if Priority Queue is empty
+bool isEmpty(PriorityQueue *pq) {
     return pq->size == 0;
 }
 
-// Graph and Dijkstra implementation
-void dijkstra(int V, int N, int graph[MAX_V][MAX_V][MAX_N], int src, int dest) {
-    int dist[MAX_V][MAX_N];
-    for (int i = 0; i < V; i++)
-        for (int j = 0; j < N; j++)
-            dist[i][j] = INT_MAX;
+// Read Graph from file
+void readGraph(Graph *graph, const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
 
-    dist[src][0] = 0;
+    fscanf(file, "%d %d", &graph->V, &graph->N);
+    graph->edgeCount = 0;
+
+    while (!feof(file)) {
+        int source, target;
+        fscanf(file, "%d %d", &source, &target);
+        graph->edges[graph->edgeCount].source = source;
+        graph->edges[graph->edgeCount].target = target;
+        for (int i = 0; i < graph->N; i++) {
+            fscanf(file, "%d", &graph->edges[graph->edgeCount].weights[i]);
+        }
+        graph->edgeCount++;
+    }
+
+    fclose(file);
+}
+
+// Dijkstra's Algorithm with Expanded Graph
+void dijkstra(Graph *graph, int start, int end) {
+    int dist[MAX_VERTICES][10]; // Distance array
+    int prev[MAX_VERTICES][10]; // Previous node for path reconstruction
+    bool visited[MAX_VERTICES][10] = {false}; // Visited array
     PriorityQueue pq;
-    initQueue(&pq);
-    push(&pq, (Node){src, 0, 0});
+    initPriorityQueue(&pq);
+
+    // Initialize distances to infinity
+    for (int i = 0; i < graph->V; i++) {
+        for (int t = 0; t < graph->N; t++) {
+            dist[i][t] = INF;
+            prev[i][t] = -1;
+        }
+    }
+
+    // Start from (start, 0)
+    dist[start][0] = 0;
+    push(&pq, start, 0, 0);
 
     while (!isEmpty(&pq)) {
         Node current = pop(&pq);
         int u = current.vertex;
-        int t = current.time_step;
+        int t = current.time;
 
-        if (current.weight > dist[u][t]) continue;
+        if (visited[u][t]) continue;
+        visited[u][t] = true;
 
-        for (int v = 0; v < V; v++) {
-            if (graph[u][v][t % N] != -1) {
-                int next_t = (t + 1) % N;
-                int new_weight = dist[u][t] + graph[u][v][t % N];
-                if (new_weight < dist[v][next_t]) {
-                    dist[v][next_t] = new_weight;
-                    push(&pq, (Node){v, next_t, new_weight});
-                }
+        // Process neighbors
+        for (int i = 0; i < graph->edgeCount; i++) {
+            Edge *edge = &graph->edges[i];
+            if (edge->source != u) continue;
+
+            int v = edge->target;
+            int nextTime = (t + 1) % graph->N;
+            int weight = edge->weights[nextTime];
+            int newDist = dist[u][t] + weight;
+
+            if (newDist < dist[v][nextTime]) {
+                dist[v][nextTime] = newDist;
+                prev[v][nextTime] = u;
+                push(&pq, v, nextTime, newDist);
             }
         }
     }
 
-    // Find the shortest path to the destination at any time step
-    int min_dist = INT_MAX;
-    for (int t = 0; t < N; t++) {
-        if (dist[dest][t] < min_dist) {
-            min_dist = dist[dest][t];
+    // Find the minimum distance to the end node
+    int minDist = INF, bestTime = -1;
+    for (int t = 0; t < graph->N; t++) {
+        if (dist[end][t] < minDist) {
+            minDist = dist[end][t];
+            bestTime = t;
         }
     }
 
-    printf("Shortest distance from %d to %d: %d\n", src, dest, min_dist);
+    // Print the shortest path
+    if (minDist == INF) {
+        printf("No path found\n");
+        return;
+    }
+
+    // Reconstruct path
+    int path[MAX_VERTICES], pathSize = 0;
+    for (int at = end, time = bestTime; at != -1; time = (time - 1 + graph->N) % graph->N) {
+        path[pathSize++] = at;
+        at = prev[at][time];
+    }
+
+    for (int i = pathSize - 1; i >= 0; i--) {
+        printf("%d ", path[i]);
+    }
+    printf("\n");
 }
 
-// Main function to parse input and run the algorithm
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        printf("Usage: %s <graph_file>\n", argv[0]);
-        return 1;
+// Main Function
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <graph.txt>\n", argv[0]);
+        return EXIT_FAILURE;
     }
 
-    FILE* file = fopen(argv[1], "r");
-    if (!file) {
-        perror("Error opening file");
-        return 1;
+    Graph graph;
+    readGraph(&graph, argv[1]);
+
+    int start, end;
+    while (scanf("%d %d", &start, &end) == 2) {
+        dijkstra(&graph, start, end);
     }
 
-    int V, N;
-    fscanf(file, "%d %d", &V, &N);
-
-    int graph[MAX_V][MAX_V][MAX_N];
-    for (int i = 0; i < V; i++)
-        for (int j = 0; j < V; j++)
-            for (int k = 0; k < N; k++)
-                graph[i][j][k] = -1;
-
-    int vs, vt;
-    while (fscanf(file, "%d %d", &vs, &vt) != EOF) {
-        for (int i = 0; i < N; i++) {
-            fscanf(file, "%d", &graph[vs][vt][i]);
-        }
-    }
-
-    fclose(file);
-
-    int src, dest;
-    while (scanf("%d %d", &src, &dest) != EOF) {
-        dijkstra(V, N, graph, src, dest);
-    }
-
-    return 0;
+    return EXIT_SUCCESS;
 }
