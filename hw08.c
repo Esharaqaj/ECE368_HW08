@@ -3,8 +3,8 @@
 #include <limits.h>
 #include <stdbool.h>
 
-#define MAX_V 1000  // Maximum number of vertices
-#define MAX_N 100   // Maximum period
+#define MAX_V 100000  // Maximum number of vertices
+#define MAX_N 100000   // Maximum period
 
 typedef struct {
     int vertex;
