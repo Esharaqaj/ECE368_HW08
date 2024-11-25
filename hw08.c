@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #define MAX_VERTICES 100000
-#define MAX_EDGES 1000
+#define MAX_EDGES 100
 #define INF INT_MAX
 
 // Edge structure
