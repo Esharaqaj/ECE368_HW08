@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <stdbool.h>
 
 #define INF INT_MAX
 
@@ -42,6 +43,8 @@ void push(PriorityQueue *pq, int vertex, int step, int weight);
 PriorityQueueNode pop(PriorityQueue *pq);
 int is_empty(PriorityQueue *pq);
 int dijkstra(Graph *graph, int start, int end, int *path);
+void handle_memory_error(void *ptr);
+void free_all_resources(Graph *graph, PriorityQueue *pq);
 
 // Main function
 int main(int argc, char *argv[]) {
@@ -58,14 +61,30 @@ int main(int argc, char *argv[]) {
 
     // Parse the graph
     int V, N;
-    fscanf(file, "%d %d", &V, &N);
+    if (fscanf(file, "%d %d", &V, &N) != 2 || V <= 0 || N <= 0) {
+        fprintf(stderr, "Invalid graph header\n");
+        fclose(file);
+        return 1;
+    }
+
     Graph *graph = create_graph(V, N);
+    if (!graph) {
+        fclose(file);
+        return 1;
+    }
 
     int src, dest;
     while (fscanf(file, "%d %d", &src, &dest) == 2) {
         int *weights = (int *)malloc(N * sizeof(int));
+        handle_memory_error(weights);
         for (int i = 0; i < N; i++) {
-            fscanf(file, "%d", &weights[i]);
+            if (fscanf(file, "%d", &weights[i]) != 1) {
+                fprintf(stderr, "Invalid edge weights\n");
+                free(weights);
+                free_graph(graph);
+                fclose(file);
+                return 1;
+            }
         }
         add_edge(graph, src, dest, weights);
     }
@@ -81,6 +100,7 @@ int main(int argc, char *argv[]) {
         }
 
         int *path = (int *)malloc(V * sizeof(int));
+        handle_memory_error(path);
         int path_length = dijkstra(graph, start, end, path);
         if (path_length == -1) {
             printf("No path found\n");
@@ -100,10 +120,13 @@ int main(int argc, char *argv[]) {
 // Create a graph
 Graph* create_graph(int V, int N) {
     Graph *graph = (Graph *)malloc(sizeof(Graph));
+    handle_memory_error(graph);
     graph->V = V;
     graph->N = N;
     graph->adj = (Edge **)malloc(V * sizeof(Edge *));
+    handle_memory_error(graph->adj);
     graph->adj_size = (int *)calloc(V, sizeof(int));
+    handle_memory_error(graph->adj_size);
     for (int i = 0; i < V; i++) {
         graph->adj[i] = NULL;
     }
@@ -113,6 +136,7 @@ Graph* create_graph(int V, int N) {
 // Add an edge to the graph
 void add_edge(Graph *graph, int src, int dest, int *weights) {
     graph->adj[src] = (Edge *)realloc(graph->adj[src], (graph->adj_size[src] + 1) * sizeof(Edge));
+    handle_memory_error(graph->adj[src]);
     graph->adj[src][graph->adj_size[src]].target = dest;
     graph->adj[src][graph->adj_size[src]].weights = weights;
     graph->adj_size[src]++;
@@ -120,6 +144,7 @@ void add_edge(Graph *graph, int src, int dest, int *weights) {
 
 // Free the graph
 void free_graph(Graph *graph) {
+    if (!graph) return;
     for (int i = 0; i < graph->V; i++) {
         for (int j = 0; j < graph->adj_size[i]; j++) {
             free(graph->adj[i][j].weights);
@@ -134,7 +159,9 @@ void free_graph(Graph *graph) {
 // Create a priority queue
 PriorityQueue* create_priority_queue(int capacity) {
     PriorityQueue *pq = (PriorityQueue *)malloc(sizeof(PriorityQueue));
+    handle_memory_error(pq);
     pq->nodes = (PriorityQueueNode *)malloc(capacity * sizeof(PriorityQueueNode));
+    handle_memory_error(pq->nodes);
     pq->size = 0;
     pq->capacity = capacity;
     return pq;
@@ -142,8 +169,10 @@ PriorityQueue* create_priority_queue(int capacity) {
 
 // Free the priority queue
 void free_priority_queue(PriorityQueue *pq) {
-    free(pq->nodes);
-    free(pq);
+    if (pq) {
+        free(pq->nodes);
+        free(pq);
+    }
 }
 
 // Push an element into the priority queue
@@ -179,6 +208,14 @@ int is_empty(PriorityQueue *pq) {
     return pq->size == 0;
 }
 
+// Handle memory allocation errors
+void handle_memory_error(void *ptr) {
+    if (!ptr) {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 // Dijkstra's algorithm for periodic weights
 int dijkstra(Graph *graph, int start, int end, int *path) {
     int V = graph->V, N = graph->N;
@@ -186,9 +223,13 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
     // Dynamically allocate dist and prev arrays
     int **dist = (int **)malloc(V * sizeof(int *));
     int **prev = (int **)malloc(V * sizeof(int *));
+    handle_memory_error(dist);
+    handle_memory_error(prev);
     for (int i = 0; i < V; i++) {
         dist[i] = (int *)malloc(N * sizeof(int));
         prev[i] = (int *)malloc(N * sizeof(int));
+        handle_memory_error(dist[i]);
+        handle_memory_error(prev[i]);
         for (int j = 0; j < N; j++) {
             dist[i][j] = INF;
             prev[i][j] = -1;
