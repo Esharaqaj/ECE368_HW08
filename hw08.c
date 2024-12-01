@@ -254,4 +254,41 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
                 path[i] = path[length - i - 1];
                 path[length - i - 1] = temp;
             }
-            return
+
+            // Free allocated memory
+            free_priority_queue(pq);
+            for (int i = 0; i < V; i++) {
+                free(dist[i]);
+                free(parent[i]);
+            }
+            free(dist);
+            free(parent);
+
+            return length;  // Return the length of the path
+        }
+
+        for (int i = 0; i < graph->adj_size[u]; i++) {
+            Edge edge = graph->adj[u][i];
+            int v = edge.target;
+            int next_time = (t + 1) % N;
+            int weight = edge.weights[t];
+            if (dist[u][t] + weight < dist[v][next_time]) {
+                dist[v][next_time] = dist[u][t] + weight;
+                parent[v][next_time] = u;
+                push(pq, v, next_time, dist[v][next_time]);
+            }
+        }
+    }
+
+    // If we reach here, there is no path to the destination
+    free_priority_queue(pq);
+    for (int i = 0; i < V; i++) {
+        free(dist[i]);
+        free(parent[i]);
+    }
+    free(dist);
+    free(parent);
+
+    return -1;  // Indicate no path found
+}
+
