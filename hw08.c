@@ -4,20 +4,6 @@
 
 #define INF INT_MAX
 
-// Struct to represent a priority queue node
-typedef struct PriorityQueueNode {
-    int node;
-    int time;
-    int weight;
-} PriorityQueueNode;
-
-// Struct to represent a priority queue
-typedef struct PriorityQueue {
-    PriorityQueueNode *nodes;
-    int size;
-    int capacity;
-} PriorityQueue;
-
 // Struct to represent an edge
 typedef struct Edge {
     int target;
@@ -32,11 +18,26 @@ typedef struct Graph {
     int *adj_size; // Size of adjacency list for each vertex
 } Graph;
 
+// Struct to represent a priority queue node
+typedef struct PriorityQueueNode {
+    int node;
+    int time;
+    int weight;
+} PriorityQueueNode;
+
+// Struct to represent a priority queue
+typedef struct PriorityQueue {
+    PriorityQueueNode *nodes;
+    int size;
+    int capacity;
+} PriorityQueue;
+
 // Function prototypes
 Graph* create_graph(int V, int N);
 void add_edge(Graph *graph, int src, int dest, int *weights);
 void free_graph(Graph *graph);
 PriorityQueue* create_priority_queue(int capacity);
+void resize_priority_queue(PriorityQueue *pq);
 void free_priority_queue(PriorityQueue *pq);
 void push(PriorityQueue *pq, int node, int time, int weight);
 PriorityQueueNode pop(PriorityQueue *pq);
@@ -165,20 +166,29 @@ PriorityQueue* create_priority_queue(int capacity) {
     return pq;
 }
 
-// Free the priority queue
-void free_priority_queue(PriorityQueue *pq) {
-    if (pq) {
-        free(pq->nodes);
-        free(pq);
-    }
+// Resize the priority queue
+void resize_priority_queue(PriorityQueue *pq) {
+    pq->capacity *= 2;
+    pq->nodes = (PriorityQueueNode *)realloc(pq->nodes, pq->capacity * sizeof(PriorityQueueNode));
+    handle_memory_error(pq->nodes);
 }
 
 // Push an element into the priority queue
 void push(PriorityQueue *pq, int node, int time, int weight) {
+    if (pq->size == pq->capacity) {
+        resize_priority_queue(pq);
+    }
+
     int i = pq->size++;
-    while (i > 0 && pq->nodes[(i - 1) / 2].weight > weight) {
-        pq->nodes[i] = pq->nodes[(i - 1) / 2];
-        i = (i - 1) / 2;
+    while (i > 0) {
+        int parent = (i - 1) / 2;
+        if (weight < pq->nodes[parent].weight ||
+            (weight == pq->nodes[parent].weight && time < pq->nodes[parent].time)) {
+            pq->nodes[i] = pq->nodes[parent];
+            i = parent;
+        } else {
+            break;
+        }
     }
     pq->nodes[i] = (PriorityQueueNode){node, time, weight};
 }
@@ -189,13 +199,22 @@ PriorityQueueNode pop(PriorityQueue *pq) {
     PriorityQueueNode last = pq->nodes[--pq->size];
     int i = 0;
     while (2 * i + 1 < pq->size) {
-        int child = 2 * i + 1;
-        if (child + 1 < pq->size && pq->nodes[child + 1].weight < pq->nodes[child].weight) {
-            child++;
+        int left = 2 * i + 1, right = 2 * i + 2, smallest = left;
+
+        if (right < pq->size &&
+            (pq->nodes[right].weight < pq->nodes[left].weight ||
+             (pq->nodes[right].weight == pq->nodes[left].weight &&
+              pq->nodes[right].time < pq->nodes[left].time))) {
+            smallest = right;
         }
-        if (last.weight <= pq->nodes[child].weight) break;
-        pq->nodes[i] = pq->nodes[child];
-        i = child;
+
+        if (last.weight < pq->nodes[smallest].weight ||
+            (last.weight == pq->nodes[smallest].weight && last.time <= pq->nodes[smallest].time)) {
+            break;
+        }
+
+        pq->nodes[i] = pq->nodes[smallest];
+        i = smallest;
     }
     pq->nodes[i] = last;
     return min;
@@ -204,6 +223,14 @@ PriorityQueueNode pop(PriorityQueue *pq) {
 // Check if the priority queue is empty
 int is_empty(PriorityQueue *pq) {
     return pq->size == 0;
+}
+
+// Free the priority queue
+void free_priority_queue(PriorityQueue *pq) {
+    if (pq) {
+        free(pq->nodes);
+        free(pq);
+    }
 }
 
 // Handle memory allocation errors
@@ -218,7 +245,6 @@ void handle_memory_error(void *ptr) {
 int dijkstra(Graph *graph, int start, int end, int *path) {
     int V = graph->V, N = graph->N;
 
-    // Initialize distance and parent arrays
     int **dist = (int **)malloc(V * sizeof(int *));
     int **parent = (int **)malloc(V * sizeof(int *));
     for (int i = 0; i < V; i++) {
@@ -240,7 +266,6 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
         int t = curr.time;
 
         if (u == end) {
-            // Reconstruct the path
             int length = 0;
             int node = u, time = t;
             while (node != -1) {
@@ -255,7 +280,6 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
                 path[length - i - 1] = temp;
             }
 
-            // Free allocated memory
             free_priority_queue(pq);
             for (int i = 0; i < V; i++) {
                 free(dist[i]);
@@ -264,7 +288,7 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
             free(dist);
             free(parent);
 
-            return length;  // Return the length of the path
+            return length;
         }
 
         for (int i = 0; i < graph->adj_size[u]; i++) {
@@ -280,7 +304,6 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
         }
     }
 
-    // If we reach here, there is no path to the destination
     free_priority_queue(pq);
     for (int i = 0; i < V; i++) {
         free(dist[i]);
@@ -289,6 +312,5 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
     free(dist);
     free(parent);
 
-    return -1;  // Indicate no path found
+    return -1;
 }
-
