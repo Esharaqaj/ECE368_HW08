@@ -1,9 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
-#include <stdbool.h>
 
 #define INF INT_MAX
+
+// Struct to represent a priority queue node
+typedef struct PriorityQueueNode {
+    int node;
+    int time;
+    int weight;
+} PriorityQueueNode;
+
+// Struct to represent a priority queue
+typedef struct PriorityQueue {
+    PriorityQueueNode *nodes;
+    int size;
+    int capacity;
+} PriorityQueue;
 
 // Struct to represent an edge
 typedef struct Edge {
@@ -19,32 +32,17 @@ typedef struct Graph {
     int *adj_size; // Size of adjacency list for each vertex
 } Graph;
 
-// Priority queue node
-typedef struct PriorityQueueNode {
-    int vertex;
-    int step;
-    int weight;
-} PriorityQueueNode;
-
-// Min-heap for priority queue
-typedef struct PriorityQueue {
-    PriorityQueueNode *nodes;
-    int size;
-    int capacity;
-} PriorityQueue;
-
 // Function prototypes
 Graph* create_graph(int V, int N);
 void add_edge(Graph *graph, int src, int dest, int *weights);
 void free_graph(Graph *graph);
 PriorityQueue* create_priority_queue(int capacity);
 void free_priority_queue(PriorityQueue *pq);
-void push(PriorityQueue *pq, int vertex, int step, int weight);
+void push(PriorityQueue *pq, int node, int time, int weight);
 PriorityQueueNode pop(PriorityQueue *pq);
 int is_empty(PriorityQueue *pq);
 int dijkstra(Graph *graph, int start, int end, int *path);
 void handle_memory_error(void *ptr);
-void free_all_resources(Graph *graph, PriorityQueue *pq);
 
 // Main function
 int main(int argc, char *argv[]) {
@@ -176,13 +174,13 @@ void free_priority_queue(PriorityQueue *pq) {
 }
 
 // Push an element into the priority queue
-void push(PriorityQueue *pq, int vertex, int step, int weight) {
+void push(PriorityQueue *pq, int node, int time, int weight) {
     int i = pq->size++;
     while (i > 0 && pq->nodes[(i - 1) / 2].weight > weight) {
         pq->nodes[i] = pq->nodes[(i - 1) / 2];
         i = (i - 1) / 2;
     }
-    pq->nodes[i] = (PriorityQueueNode){vertex, step, weight};
+    pq->nodes[i] = (PriorityQueueNode){node, time, weight};
 }
 
 // Pop the minimum element from the priority queue
@@ -220,75 +218,40 @@ void handle_memory_error(void *ptr) {
 int dijkstra(Graph *graph, int start, int end, int *path) {
     int V = graph->V, N = graph->N;
 
-    // Dynamically allocate dist and prev arrays
+    // Initialize distance and parent arrays
     int **dist = (int **)malloc(V * sizeof(int *));
-    int **prev = (int **)malloc(V * sizeof(int *));
-    handle_memory_error(dist);
-    handle_memory_error(prev);
+    int **parent = (int **)malloc(V * sizeof(int *));
     for (int i = 0; i < V; i++) {
         dist[i] = (int *)malloc(N * sizeof(int));
-        prev[i] = (int *)malloc(N * sizeof(int));
-        handle_memory_error(dist[i]);
-        handle_memory_error(prev[i]);
+        parent[i] = (int *)malloc(N * sizeof(int));
         for (int j = 0; j < N; j++) {
             dist[i][j] = INF;
-            prev[i][j] = -1;
+            parent[i][j] = -1;
         }
     }
-    dist[start][0] = 0;
 
     PriorityQueue *pq = create_priority_queue(V * N);
     push(pq, start, 0, 0);
+    dist[start][0] = 0;
 
     while (!is_empty(pq)) {
-        PriorityQueueNode node = pop(pq);
-        int u = node.vertex;
-        int step = node.step;
+        PriorityQueueNode curr = pop(pq);
+        int u = curr.node;
+        int t = curr.time;
 
         if (u == end) {
-            // Reconstruct path
+            // Reconstruct the path
             int length = 0;
-            int v = u, s = step;
-            while (v != -1) {
-                path[length++] = v;
-                int temp = prev[v][s];
-                s = (s - 1 + N) % N;
-                v = temp;
+            int node = u, time = t;
+            while (node != -1) {
+                path[length++] = node;
+                int prev_time = (time - 1 + N) % N;
+                node = parent[node][prev_time];
+                time = prev_time;
             }
             for (int i = 0; i < length / 2; i++) {
-                int tmp = path[i];
-                path[i] = path[length - 1 - i];
-                path[length - 1 - i] = tmp;
+                int temp = path[i];
+                path[i] = path[length - i - 1];
+                path[length - i - 1] = temp;
             }
-            free_priority_queue(pq);
-            for (int i = 0; i < V; i++) {
-                free(dist[i]);
-                free(prev[i]);
-            }
-            free(dist);
-            free(prev);
-            return length;
-        }
-
-        for (int i = 0; i < graph->adj_size[u]; i++) {
-            Edge edge = graph->adj[u][i];
-            int v = edge.target;
-            int next_step = (step + 1) % N;
-            int weight = edge.weights[step];
-            if (dist[u][step] + weight < dist[v][next_step]) {
-                dist[v][next_step] = dist[u][step] + weight;
-                prev[v][next_step] = u;
-                push(pq, v, next_step, dist[v][next_step]);
-            }
-        }
-    }
-
-    free_priority_queue(pq);
-    for (int i = 0; i < V; i++) {
-        free(dist[i]);
-        free(prev[i]);
-    }
-    free(dist);
-    free(prev);
-    return -1;
-}
+            return
