@@ -245,6 +245,7 @@ void handle_memory_error(void *ptr) {
 int dijkstra(Graph *graph, int start, int end, int *path) {
     int V = graph->V, N = graph->N;
 
+    // Initialize distance and parent arrays
     int **dist = (int **)malloc(V * sizeof(int *));
     int **parent = (int **)malloc(V * sizeof(int *));
     for (int i = 0; i < V; i++) {
@@ -266,12 +267,28 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
         int t = curr.time;
 
         if (u == end) {
+            // Reconstruct the path
             int length = 0;
             int node = u, time = t;
             while (node != -1) {
                 path[length++] = node;
                 int prev_time = (time - 1 + N) % N;
-                node = parent[node][prev_time];
+                int prev_node = parent[node][time];
+                if (prev_node != -1 && graph->adj_size[prev_node] > 0) {
+                    // Validate that the reconstructed edge is valid
+                    int is_valid = 0;
+                    for (int i = 0; i < graph->adj_size[prev_node]; i++) {
+                        if (graph->adj[prev_node][i].target == node) {
+                            is_valid = 1;
+                            break;
+                        }
+                    }
+                    if (!is_valid) {
+                        fprintf(stderr, "Error: Invalid edge from %d to %d\n", prev_node, node);
+                        return -1;
+                    }
+                }
+                node = prev_node;
                 time = prev_time;
             }
             for (int i = 0; i < length / 2; i++) {
@@ -298,12 +315,13 @@ int dijkstra(Graph *graph, int start, int end, int *path) {
             int weight = edge.weights[t];
             if (dist[u][t] + weight < dist[v][next_time]) {
                 dist[v][next_time] = dist[u][t] + weight;
-                parent[v][next_time] = u;
+                parent[v][next_time] = u;  // Correctly track the parent
                 push(pq, v, next_time, dist[v][next_time]);
             }
         }
     }
 
+    // If we reach here, there is no path to the destination
     free_priority_queue(pq);
     for (int i = 0; i < V; i++) {
         free(dist[i]);
